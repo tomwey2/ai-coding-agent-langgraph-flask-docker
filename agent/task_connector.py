@@ -51,10 +51,13 @@ class TaskAppConnector:
             response = requests.post(login_url, json=login_payload, timeout=10)
             response.raise_for_status()
 
-            self.access_token = response.json().get("access_token")
+            response_data = response.json()
+            logging.info(f"Login response from server: {response_data}")
+
+            self.access_token = response_data.get("token")
             if not self.access_token:
                 raise TaskAppConnectorError(
-                    "Login failed: access_token not found in response."
+                    f"Login failed: 'token' not found in response. Server sent: {response_data}"
                 )
 
             logging.info("Login successful. Token received.")
@@ -114,7 +117,7 @@ class TaskAppConnector:
         try:
             self._ensure_authenticated()
             url = self._get_url(f"/api/tasks/{task_id}/comments")
-            payload = {"text": comment}  # Based on typical API conventions
+            payload = {"text": comment}
             logging.info(f"Posting comment to {url}: '{comment}'")
             response = requests.post(
                 url, headers=self.headers, json=payload, timeout=10
