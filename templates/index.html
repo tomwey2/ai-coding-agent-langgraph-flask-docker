@@ -1,36 +1,108 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Agent Configuration</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  </head>
-  <body>
-    <div class="container mt-4">
-      <h1>Agent Configuration</h1>
-      <hr>
-      <form method="post">
-        <div class="mb-3">
-          <label for="task_app_base_url" class="form-label">TaskApp Base URL</label>
-          <input type="url" class="form-control" id="task_app_base_url" name="task_app_base_url" value="{{ config.task_app_base_url or '' }}" required>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Agent Configuration</title>
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+        />
+    </head>
+    <body>
+        <div class="container mt-4">
+            <h1>Agent Configuration</h1>
+            <hr />
+            <form method="post">
+                <div class="mb-3">
+                    <label for="task_app_base_url" class="form-label"
+                        >TaskApp Base URL</label
+                    >
+                    <input
+                        type="url"
+                        class="form-control"
+                        id="task_app_base_url"
+                        name="task_app_base_url"
+                        value="{{ config.task_app_base_url or '' }}"
+                        required
+                    />
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="agent_username" class="form-label"
+                                >Agent Username</label
+                            >
+                            <input
+                                type="text"
+                                class="form-control"
+                                id="agent_username"
+                                name="agent_username"
+                                value="{{ config.agent_username or '' }}"
+                            />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label for="agent_password" class="form-label"
+                                >Agent Password</label
+                            >
+                            <input
+                                type="password"
+                                class="form-control"
+                                id="agent_password"
+                                name="agent_password"
+                                value="{{ config.agent_password or '' }}"
+                            />
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="target_project_id" class="form-label"
+                        >Target Project ID</label
+                    >
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="target_project_id"
+                        name="target_project_id"
+                        value="{{ config.target_project_id or '' }}"
+                    />
+                </div>
+                <div class="mb-3">
+                    <label for="polling_interval_seconds" class="form-label"
+                        >Polling Interval (seconds)</label
+                    >
+                    <input
+                        type="number"
+                        class="form-control"
+                        id="polling_interval_seconds"
+                        name="polling_interval_seconds"
+                        value="{{ config.polling_interval_seconds or 60 }}"
+                        required
+                    />
+                </div>
+                <div class="form-check mb-3">
+                    <input
+                        class="form-check-input"
+                        type="checkbox"
+                        id="is_active"
+                        name="is_active"
+                        {%
+                        if
+                        config.is_active
+                        %}checked{%
+                        endif
+                        %}
+                    />
+                    <label class="form-check-label" for="is_active">
+                        Activate Agent Polling
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    Save Configuration
+                </button>
+            </form>
         </div>
-        <div class="mb-3">
-          <label for="api_token" class="form-label">API Token (Optional)</label>
-          <input type="text" class="form-control" id="api_token" name="api_token" value="{{ config.api_token or '' }}">
-        </div>
-        <div class="mb-3">
-          <label for="polling_interval_seconds" class="form-label">Polling Interval (seconds)</label>
-          <input type="number" class="form-control" id="polling_interval_seconds" name="polling_interval_seconds" value="{{ config.polling_interval_seconds or 60 }}" required>
-        </div>
-        <div class="form-check mb-3">
-          <input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if config.is_active %}checked{% endif %}>
-          <label class="form-check-label" for="is_active">
-            Activate Agent Polling
-          </label>
-        </div>
-        <button type="submit" class="btn btn-primary">Save Configuration</button>
-      </form>
-    </div>
-  </body>
+    </body>
 </html>

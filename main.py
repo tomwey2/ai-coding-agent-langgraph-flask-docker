@@ -33,7 +33,9 @@ def create_app():
                 db.session.add(config)
 
             config.task_app_base_url = request.form.get("task_app_base_url")
-            config.api_token = request.form.get("api_token")
+            config.agent_username = request.form.get("agent_username")
+            config.agent_password = request.form.get("agent_password")
+            config.target_project_id = request.form.get("target_project_id")
             polling_interval = int(request.form.get("polling_interval_seconds", 60))
             config.polling_interval_seconds = polling_interval
             config.is_active = "is_active" in request.form
@@ -54,7 +56,9 @@ def create_app():
             # Create a default, temporary config for the form if none exists
             config = AgentConfig(
                 task_app_base_url="http://127.0.0.1:8000/api",
-                api_token="",
+                agent_username="",
+                agent_password="",
+                target_project_id="",
                 polling_interval_seconds=60,
                 is_active=False,
             )
@@ -72,7 +76,7 @@ def create_app():
         if not scheduler.get_job("agent_job"):
             scheduler.add_job(
                 id="agent_job",
-                func=run_agent_cycle,
+                func=lambda: run_agent_cycle(app=app),
                 trigger="interval",
                 seconds=interval_seconds,
                 replace_existing=True,

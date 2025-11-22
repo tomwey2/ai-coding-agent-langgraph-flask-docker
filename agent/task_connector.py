@@ -2,39 +2,107 @@ import logging
 
 import requests
 
+# Configure basic logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 
+class TaskAppConnectorError(Exception):
+    """Custom exception for the TaskAppConnector."""
+
+    pass
+
+
 class TaskAppConnector:
     """
-    A connector class to interact with the external TaskApp API.
+    A connector class to interact with the external TaskApp API,
+    handling authentication and task management.
     """
 
-    def __init__(self, base_url, api_token=None):
-        if not base_url:
-            raise ValueError("base_url cannot be empty.")
+    def __init__(self, base_url, username, password, project_id):
+        if not all([base_url, username, password, project_id]):
+            raise ValueError(
+                "base_url, username, password, and project_id are required."
+            )
         self.base_url = base_url.rstrip("/")
+        self.username = username
+        self.password = password
+        self.project_id = project_id
+
+        self.access_token = None
+        self.user_id = None
+
         self.headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
-        if api_token:
-            self.headers["Authorization"] = f"Bearer {api_token}"
 
     def _get_url(self, path):
         return f"{self.base_url}{path}"
 
-    def get_open_tasks(self):
-        """Fetches tasks with status 'open'."""
+    def authenticate(self):
+        """Authenticates with the TaskApp and retrieves user_id."""
+        logging.info("Authenticating with TaskApp...")
         try:
-            url = self._get_url("/tasks?status=open")
-            logging.info(f"Fetching open tasks from {url}")
-            response = requests.get(url, headers=self.headers, timeout=10)
-            response.raise_for_status()  # Raises HTTPError for bad responses (4xx or 5xx)
-            return response.json()
+            # Login to get the access token
+            login_url = self._get_url("/api/auth/login")
+            login_payload = {"username": self.username, "password": self.password}
+            response = requests.post(login_url, json=login_payload, timeout=10)
+            response.raise_for_status()
+
+            self.access_token = response.json().get("access_token")
+            if not self.access_token:
+                raise TaskAppConnectorError(
+                    "Login failed: access_token not found in response."
+                )
+
+            logging.info("Login successful. Token received.")
+            self.headers["Authorization"] = f"Bearer {self.access_token}"
+
+            # Get user info to retrieve user ID
+            me_url = self._get_url("/api/auth/me")
+            response = requests.get(me_url, headers=self.headers, timeout=10)
+            response.raise_for_status()
+
+            self.user_id = response.json().get("id")
+            if not self.user_id:
+                raise TaskAppConnectorError("Failed to get user_id from /api/auth/me.")
+
+            logging.info(f"Authentication successful. User ID: {self.user_id}")
+            return True
+
         except requests.exceptions.RequestException as e:
+            logging.error(f"Authentication failed: {e}")
+            raise TaskAppConnectorError(f"Authentication failed: {e}") from e
+
+    def _ensure_authenticated(self):
+        """Ensures that the connector is authenticated before making a request."""
+        if not self.access_token or not self.user_id:
+            self.authenticate()
+
+    def get_open_tasks(self):
+        """
+        Fetches tasks from a specific project assigned to the authenticated user.
+        Filters for 'open' status client-side.
+        """
+        try:
+            self._ensure_authenticated()
+            url = self._get_url(
+                f"/api/projects/{self.project_id}/tasks?assignedToUserId={self.user_id}"
+            )
+            logging.info(f"Fetching tasks from {url}")
+            response = requests.get(url, headers=self.headers, timeout=10)
+            response.raise_for_status()
+            all_tasks = response.json()
+
+            # Client-side filtering for open tasks
+            open_tasks = [
+                task for task in all_tasks if task.get("status", "").lower() == "open"
+            ]
+            logging.info(f"Found {len(open_tasks)} open tasks.")
+            return open_tasks
+        except (requests.exceptions.RequestException, TaskAppConnectorError) as e:
             logging.error(f"API request failed for get_open_tasks: {e}")
             return None
 
@@ -44,15 +112,16 @@ class TaskAppConnector:
             logging.warning("task_id and comment cannot be empty for post_comment.")
             return False
         try:
-            url = self._get_url(f"/tasks/{task_id}/comments")
-            payload = {"comment": comment}
+            self._ensure_authenticated()
+            url = self._get_url(f"/api/tasks/{task_id}/comments")
+            payload = {"text": comment}  # Based on typical API conventions
             logging.info(f"Posting comment to {url}: '{comment}'")
             response = requests.post(
                 url, headers=self.headers, json=payload, timeout=10
             )
             response.raise_for_status()
             return True
-        except requests.exceptions.RequestException as e:
+        except (requests.exceptions.RequestException, TaskAppConnectorError) as e:
             logging.error(f"API request failed for post_comment on task {task_id}: {e}")
             return False
 
@@ -62,18 +131,17 @@ class TaskAppConnector:
             logging.warning("task_id and status cannot be empty for update_status.")
             return False
         try:
-            url = self._get_url(f"/tasks/{task_id}")
+            self._ensure_authenticated()
+            url = self._get_url(f"/api/tasks/{task_id}")
             payload = {"status": status}
             logging.info(f"Updating status of task {task_id} to '{status}' at {url}")
-            # Using PATCH is standard for partial updates.
             response = requests.patch(
                 url, headers=self.headers, json=payload, timeout=10
             )
             response.raise_for_status()
             return True
-        except requests.exceptions.RequestException as e:
+        except (requests.exceptions.RequestException, TaskAppConnectorError) as e:
             logging.error(
                 f"API request failed for update_status on task {task_id}: {e}"
             )
-            logging.error(f"API request failed for update_status on task {task_id}: {e}")
             return False

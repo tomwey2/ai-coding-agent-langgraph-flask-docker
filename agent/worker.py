@@ -1,87 +1,104 @@
 import logging
 import time
 
-from flask import current_app
-
-from agent.task_connector import TaskAppConnector
+from agent.task_connector import TaskAppConnector, TaskAppConnectorError
 from extensions import db
 from models import AgentConfig
+
+# Configure basic logging
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 
-def run_agent_cycle():
+def run_agent_cycle(app):
     """
     This function is executed by the scheduler.
-    It fetches the configuration, connects to the TaskApp, and processes tasks.
-    Flask-APScheduler should provide the necessary application context.
+    It fetches the configuration, connects to the TaskApp, authenticates, and processes tasks.
+    It requires the app context to be passed in to access the database.
     """
-    logging.info("Agent cycle starting...")
+    with app.app_context():
+        logging.info("Agent cycle starting...")
 
-    # The app context is required to interact with the database.
-    # Flask-APScheduler is configured to provide this automatically.
-    config = AgentConfig.query.first()
+        config = AgentConfig.query.first()
 
-    if not config:
-        logging.warning("Agent configuration not found in database. Skipping cycle.")
-        return
+        if not config:
+            logging.warning(
+                "Agent configuration not found in database. Skipping cycle."
+            )
+            return
 
-    if not config.is_active:
-        logging.info("Agent is not active. Skipping cycle.")
-        return
+        if not config.is_active:
+            logging.info("Agent is not active. Skipping cycle.")
+            return
 
-    logging.info(
-        f"Agent is active. Polling interval: {config.polling_interval_seconds}s. Target: {config.task_app_base_url}"
-    )
+        if not all(
+            [
+                config.agent_username,
+                config.agent_password,
+                config.target_project_id,
+                config.task_app_base_url,
+            ]
+        ):
+            logging.warning(
+                "Agent configuration is incomplete (username, password, project ID, or URL is missing). Skipping cycle."
+            )
+            return
 
-    connector = TaskAppConnector(
-        base_url=config.task_app_base_url, api_token=config.api_token
-    )
+        logging.info(
+            f"Agent is active. Polling target project {config.target_project_id}..."
+        )
 
-    tasks = connector.get_open_tasks()
+        try:
+            connector = TaskAppConnector(
+                base_url=config.task_app_base_url,
+                username=config.agent_username,
+                password=config.agent_password,
+                project_id=config.target_project_id,
+            )
 
-    if tasks is None:
-        logging.error("Could not retrieve tasks from the API. Ending cycle.")
-        return
+            tasks = connector.get_open_tasks()
 
-    if not tasks:
-        logging.info("No open tasks found.")
-        return
+            if tasks is None:
+                logging.error("Could not retrieve tasks from the API. Ending cycle.")
+                return
 
-    # For Phase 1, we only process the first task found.
-    task_to_process = tasks[0]
-    task_id = task_to_process.get("id")
+            if not tasks:
+                logging.info("No open tasks found for the configured user/project.")
+                return
 
-    if not task_id:
-        logging.error("Found a task without an 'id'. Skipping.")
-        return
+            # Process the first task found
+            task_to_process = tasks[0]
+            task_id = task_to_process.get("id")
 
-    logging.info(f"Processing task ID: {task_id}")
+            if not task_id:
+                logging.error("Found a task without an 'id'. Skipping.")
+                return
 
-    # --- Simulation Step ---
-    # 1. Post a starting comment
-    success = connector.post_comment(task_id, "Agent simulation started.")
-    if not success:
-        logging.error(f"Failed to post 'start' comment for task {task_id}. Aborting.")
-        return
+            logging.info(f"Processing task ID: {task_id}")
 
-    # 2. "Work" for 2 seconds
-    logging.info("Simulating work for 2 seconds...")
-    time.sleep(2)
+            # --- Simulation Step ---
+            connector.post_comment(task_id, "Agent simulation started.")
 
-    # 3. Post a finishing comment and update status
-    success = connector.post_comment(task_id, "Agent simulation finished.")
-    if success:
-        logging.info("Successfully posted 'finish' comment.")
-        status_updated = connector.update_status(task_id, "IN_REVIEW")
-        logging.info("Successfully posted 'finish' comment.")
-        status_updated = connector.update_status(task_id, 'IN_REVIEW')
-        if status_updated:
-            logging.info(f"Successfully updated task {task_id} status to 'IN_REVIEW'.")
-        else:
-            logging.error(f"Failed to update status for task {task_id}.")
-    else:
-        logging.error(f"Failed to post 'finish' comment for task {task_id}.")
+            logging.info("Simulating work for 2 seconds...")
+            time.sleep(2)
 
-    logging.info("Agent cycle finished.")
+            connector.post_comment(task_id, "Agent simulation finished.")
+            status_updated = connector.update_status(task_id, "IN_REVIEW")
+
+            if status_updated:
+                logging.info(
+                    f"Successfully updated task {task_id} status to 'IN_REVIEW'."
+                )
+            else:
+                logging.error(f"Failed to update status for task {task_id}.")
+
+        except TaskAppConnectorError as e:
+            logging.error(f"A critical connector error occurred: {e}. Aborting cycle.")
+        except Exception as e:
+            logging.error(
+                f"An unexpected error occurred during the agent cycle: {e}",
+                exc_info=True,
+            )
+
+        logging.info("Agent cycle finished.")
