@@ -2,6 +2,7 @@ import os
 
 from flask import Flask, flash, redirect, render_template, request, url_for
 
+from agent.worker import run_agent_cycle
 from extensions import db, scheduler
 from models import AgentConfig
 
@@ -33,12 +34,18 @@ def create_app():
 
             config.task_app_base_url = request.form.get("task_app_base_url")
             config.api_token = request.form.get("api_token")
-            config.polling_interval_seconds = int(
-                request.form.get("polling_interval_seconds", 60)
-            )
+            polling_interval = int(request.form.get("polling_interval_seconds", 60))
+            config.polling_interval_seconds = polling_interval
             config.is_active = "is_active" in request.form
 
             db.session.commit()
+
+            # Reschedule job if interval changed
+            if scheduler.get_job("agent_job"):
+                scheduler.reschedule_job(
+                    "agent_job", trigger="interval", seconds=polling_interval
+                )
+
             flash("Configuration saved successfully!", "success")
             return redirect(url_for("index"))
 
@@ -54,22 +61,20 @@ def create_app():
 
         return render_template("index.html", config=config)
 
-    # Placeholder for the actual agent worker job
-    def dummy_job():
-        print("Scheduler is running... (This is a dummy job)")
-
     with app.app_context():
         db.create_all()
 
-        # Add the job to the scheduler if it doesn't exist
-        if not scheduler.get_job("dummy_job_id"):
-            # The actual job will be added later, using the config from the DB.
-            # For now, we use a dummy job that runs every 10 seconds.
+        # Get polling interval from DB or use default
+        config = AgentConfig.query.first()
+        interval_seconds = config.polling_interval_seconds if config else 60
+
+        # Add the agent job to the scheduler if it doesn't exist
+        if not scheduler.get_job("agent_job"):
             scheduler.add_job(
-                id="dummy_job_id",
-                func=dummy_job,
+                id="agent_job",
+                func=run_agent_cycle,
                 trigger="interval",
-                seconds=10,
+                seconds=interval_seconds,
                 replace_existing=True,
             )
 
