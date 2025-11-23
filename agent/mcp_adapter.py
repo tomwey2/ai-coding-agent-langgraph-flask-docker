@@ -13,11 +13,14 @@ from pydantic import Field, create_model
 
 class McpGitAdapter:
     def __init__(self):
-        # Wir definieren den Server-Startbefehl (npx muss im PATH sein)
+        # ÄNDERUNG: Wir rufen das Python-Paket direkt auf.
+        # "mcp-server-git" ist das Executable, das pip/uv installiert hat.
+        # Wir übergeben "--repository /app/work_dir", damit er weiß, wo er arbeiten soll.
+
         self.server_params = StdioServerParameters(
-            command="npx",
-            args=["-y", "@modelcontextprotocol/server-git"],
-            env=os.environ.copy(),  # Umgebungsvariablen weiterreichen (wichtig für GIT_AUTHOR_NAME etc.)
+            command="mcp-server-git",
+            args=["--repository", "/app/work_dir"],
+            env=os.environ.copy(),
         )
         self.exit_stack = AsyncExitStack()
         self.session = None

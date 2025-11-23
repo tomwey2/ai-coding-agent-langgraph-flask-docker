@@ -11,6 +11,10 @@ class AgentConfig(db.Model):
         db.String(255), nullable=True
     )  # Note: Storing passwords in plaintext is not secure!
     target_project_id = db.Column(db.String(50), nullable=True)
+    github_repo_url = db.Column(
+        db.String(200),
+        default="https://github.com/tomwey2/calculator-spring-docker-jenkins.git",
+    )
     polling_interval_seconds = db.Column(db.Integer, nullable=False, default=60)
     is_active = db.Column(db.Boolean, nullable=False, default=False)
 
