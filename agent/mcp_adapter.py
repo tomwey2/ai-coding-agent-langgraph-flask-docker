@@ -1,0 +1,126 @@
+import asyncio
+import os
+from contextlib import AsyncExitStack
+
+# LangChain / Pydantic Imports
+from langchain_core.tools import StructuredTool
+
+# MCP Imports
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+from pydantic import Field, create_model
+
+
+class McpGitAdapter:
+    def __init__(self):
+        # Wir definieren den Server-Startbefehl (npx muss im PATH sein)
+        self.server_params = StdioServerParameters(
+            command="npx",
+            args=["-y", "@modelcontextprotocol/server-git"],
+            env=os.environ.copy(),  # Umgebungsvariablen weiterreichen (wichtig für GIT_AUTHOR_NAME etc.)
+        )
+        self.exit_stack = AsyncExitStack()
+        self.session = None
+
+    async def __aenter__(self):
+        """Startet den Server und die Session."""
+        # 1. Transport Layer (Stdio) starten
+        read, write = await self.exit_stack.enter_async_context(
+            stdio_client(self.server_params)
+        )
+
+        # 2. Session Layer starten
+        self.session = await self.exit_stack.enter_async_context(
+            ClientSession(read, write)
+        )
+
+        # 3. Initialisierung (Handshake)
+        await self.session.initialize()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Räumt auf und stoppt den Server."""
+        await self.exit_stack.aclose()
+
+    async def get_langchain_tools(self):
+        """
+        Holt alle Tools vom MCP Server und konvertiert sie in LangChain Tools.
+        """
+        if not self.session:
+            raise RuntimeError(
+                "MCP Session not started. Use 'async with McpGitAdapter() ...'"
+            )
+
+        # Liste der Tools vom Server abrufen
+        mcp_tools_list = await self.session.list_tools()
+        langchain_tools = []
+
+        for tool_schema in mcp_tools_list.tools:
+            # Wir bauen für jedes Tool einen Wrapper
+            lc_tool = self._convert_to_langchain_tool(tool_schema)
+            langchain_tools.append(lc_tool)
+
+        return langchain_tools
+
+    def _convert_to_langchain_tool(self, tool_schema):
+        """
+        Wandelt ein MCP Tool Schema in ein LangChain StructuredTool um.
+        Hier passiert die Magie: Wir erzeugen dynamisch ein Pydantic Model für die Argumente.
+        """
+        tool_name = tool_schema.name
+        tool_desc = tool_schema.description or "No description provided."
+
+        # 1. Dynamisches Pydantic Model für die Argumente erstellen
+        # MCP liefert JSON Schema (inputSchema), LangChain will Pydantic
+        fields = {}
+        input_schema = tool_schema.inputSchema or {}
+        properties = input_schema.get("properties", {})
+        required_fields = input_schema.get("required", [])
+
+        for field_name, field_info in properties.items():
+            field_type = str  # Default zu String, da JSON Schema komplex sein kann
+
+            # Einfaches Type-Mapping (kann erweitert werden)
+            if field_info.get("type") == "integer":
+                field_type = int
+            elif field_info.get("type") == "boolean":
+                field_type = bool
+
+            # Ist das Feld Pflicht?
+            if field_name in required_fields:
+                fields[field_name] = (
+                    field_type,
+                    Field(description=field_info.get("description", "")),
+                )
+            else:
+                fields[field_name] = (
+                    field_type | None,
+                    Field(default=None, description=field_info.get("description", "")),
+                )
+
+        # Das dynamische Model erzeugen
+        ArgsModel = create_model(f"{tool_name}Args", **fields)
+
+        # 2. Die Ausführungsfunktion (Wrapper)
+        async def tool_func(**kwargs):
+            # Aufruf an den MCP Server senden
+            result = await self.session.call_tool(tool_name, arguments=kwargs)
+
+            # Ergebnis formatieren (Text zurückgeben)
+            # MCP Tools können Text oder Bilder zurückgeben. Wir nehmen vorerst nur Text.
+            output_text = []
+            if hasattr(result, "content"):
+                for content in result.content:
+                    if content.type == "text":
+                        output_text.append(content.text)
+
+            return "\n".join(output_text)
+
+        # 3. Das finale LangChain Tool zurückgeben
+        return StructuredTool.from_function(
+            func=None,  # Wir nutzen coroutine, daher func=None
+            coroutine=tool_func,
+            name=tool_name,
+            description=tool_desc,
+            args_schema=ArgsModel,
+        )

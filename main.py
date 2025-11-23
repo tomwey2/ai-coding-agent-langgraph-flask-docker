@@ -94,4 +94,5 @@ if __name__ == "__main__":
     app = create_app()
     # Note: Setting debug=True can cause the scheduler to run jobs twice.
     # Use debug=False or app.run(debug=True, use_reloader=False) in development.
-    app.run(debug=True, use_reloader=False)
+    # WICHTIG: host='0.0.0.0' ist für Docker zwingend nötig
+    app.run(debug=True, use_reloader=False, host="0.0.0.0", port=5000)
