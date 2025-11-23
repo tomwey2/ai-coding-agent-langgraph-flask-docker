@@ -1,0 +1,20 @@
+# Git
+.git
+.gitignore
+
+# Python / uv
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Daten & Logs
+instance/
+*.db
+*.log
+work_dir/
+
+# IDEs
+.vscode
+.idea
