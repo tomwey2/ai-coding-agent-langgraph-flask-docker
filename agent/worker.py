@@ -2,10 +2,10 @@ import asyncio
 import logging
 import os
 import shutil
+import subprocess  # <--- WICHTIG: Für den System-Clone
 import time
 
 # LangChain Imports
-# ACHTUNG: Stelle sicher, dass 'uv add langchain' ausgeführt wurde
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.tools import tool
@@ -21,7 +21,7 @@ from models import AgentConfig
 logger = logging.getLogger(__name__)
 
 
-# --- Lokale Tools (da der Git-MCP Server keine Dateien schreiben kann) ---
+# --- Lokale Tools ---
 @tool
 def write_to_file(filepath: str, content: str):
     """
@@ -29,67 +29,101 @@ def write_to_file(filepath: str, content: str):
     Use this to create new files or overwrite existing ones with code.
     The filepath should be relative to the current working directory.
     """
-    # Sicherheits-Check: Wir wollen nicht außerhalb von work_dir schreiben
     base_dir = "/app/work_dir"
     full_path = os.path.join(base_dir, filepath)
-
-    # Sicherstellen, dass der Ordner existiert
     os.makedirs(os.path.dirname(full_path), exist_ok=True)
-
     with open(full_path, "w", encoding="utf-8") as f:
         f.write(content)
-
     return f"Successfully wrote to {filepath}"
+
+
+# --- BOOTSTRAPPING FUNKTION ---
+def ensure_repository_exists(repo_url, work_dir):
+    """
+    Stellt sicher, dass work_dir ein valides Git-Repo ist,
+    DAMIT der MCP-Server überhaupt starten kann.
+    """
+    # 1. Ordner erstellen
+    if not os.path.exists(work_dir):
+        os.makedirs(work_dir)
+
+    # 2. Prüfen ob .git existiert
+    git_dir = os.path.join(work_dir, ".git")
+    if os.path.isdir(git_dir):
+        logger.info("Repository already exists. Skipping clone.")
+        return
+
+    logger.info(f"Bootstrapping repository from {repo_url}...")
+
+    # 3. Versuchen zu Clonen
+    try:
+        # Wir nutzen "." um in den aktuellen Ordner zu clonen
+        subprocess.run(
+            ["git", "clone", repo_url, "."],
+            cwd=work_dir,
+            check=True,
+            capture_output=True,
+        )
+        logger.info("Clone successful.")
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Git Clone failed (likely Auth or Empty URL): {e}")
+        logger.warning("Falling back to 'git init' so the Agent can at least start.")
+
+        # 4. Fallback: Leeres Repo initialisieren (damit MCP nicht crasht)
+        subprocess.run(["git", "init"], cwd=work_dir, check=True)
 
 
 # ------------------------------------------------------------------------
 
 
 async def process_task_with_agent(task, config):
-    """
-    Der asynchrone Kern: Startet MCP, LLM und löst die Aufgabe.
-    """
-    repo_url = config.github_repo_url
-    # Fallback, falls URL leer ist (für den Test)
-    if not repo_url:
-        repo_url = "https://github.com/tom-test-user/test-repo.git"  # Dummy
-
+    repo_url = (
+        config.github_repo_url or "https://github.com/tom-test-user/test-repo.git"
+    )
     work_dir = "/app/work_dir"
 
-    # 1. MCP Adapter starten (Context Manager)
+    # SCHRITT 0: Bootstrapping (Henne-Ei-Problem lösen)
+    # Wir machen das synchron, bevor der MCP Server startet
+    ensure_repository_exists(repo_url, work_dir)
+
+    # SCHRITT 1: MCP Adapter starten
+    # Jetzt ist work_dir garantiert ein Git-Repo, der Server wird nicht crashen.
     async with McpGitAdapter() as mcp_adapter:
         logger.info("MCP Git Server connected.")
 
-        # 2. Tools abrufen (MCP Tools + unser lokales Write-Tool)
         mcp_tools = await mcp_adapter.get_langchain_tools()
         local_tools = [write_to_file]
-
         all_tools = mcp_tools + local_tools
 
-        logger.info(f"Loaded {len(all_tools)} tools (MCP Git + Local File Write).")
-
-        # 3. LLM initialisieren
         llm = get_llm_model(config)
 
-        # 4. Prompt definieren
+        # Prompt Update: Wir sagen dem Agenten NICHT mehr "Clone repo",
+        # weil wir das schon erledigt haben. Er soll "Analysieren" und "Coden".
         prompt = ChatPromptTemplate.from_messages(
             [
                 (
                     "system",
-                    "You are an expert autonomous coding agent. "
-                    "You have access to Git tools via MCP and a local file writer.\n"
-                    "Your goal is to solve the user's task in the provided repository.\n"
-                    "Current Working Directory inside Container: {work_dir}\n"
+                    "You are an expert autonomous coding agent with file system access.\n"
+                    "You are working in a Linux container. The repository is cloned at: {work_dir}\n"
                     "Target Repository URL: {repo_url}\n"
                     "\n"
-                    "CRITICAL WORKFLOW:\n"
-                    "1. git_clone the repository URL to '{work_dir}'. (If directory is not empty, assume it's already cloned or handle errors).\n"
-                    "2. Analyze the file structure (you can rely on git tools or just overwrite files).\n"
-                    "3. Use 'write_to_file' to implement the requested changes.\n"
-                    "4. git_add the changed files.\n"
-                    "5. git_commit with a descriptive message.\n"
-                    "6. git_push (Assume credentials are set via global config or environment).\n"
-                    "7. Reply with 'DONE' and a summary of what you did.",
+                    "AVAILABLE TOOLS:\n"
+                    "- use 'write_to_file' to save content to disk.\n"
+                    "- use 'git_add', 'git_commit', 'git_push' for version control.\n"
+                    "\n"
+                    "RULES:\n"
+                    "1. DO NOT just output the code or text in the chat. That is useless.\n"
+                    "2. YOU MUST call 'write_to_file' to actually save your changes to the disk.\n"
+                    "3. If you generate a README or code, save it immediately using the tool.\n"
+                    "4. After saving, you MUST commit and push.\n"
+                    "\n"
+                    "WORKFLOW:\n"
+                    "1. Analyze the current files.\n"
+                    "2. Generate the new content.\n"
+                    '3. EXECUTE \'write_to_file(filepath="README.md", content="...")\'.\n'
+                    "4. EXECUTE 'git_add(path=\".\")'.\n"
+                    "5. EXECUTE 'git_commit(message=\"Update README\")'.\n"
+                    "6. Reply with 'DONE' only after the tools have run.",
                 ),
                 (
                     "human",
@@ -99,18 +133,11 @@ async def process_task_with_agent(task, config):
             ]
         )
 
-        # 5. Agent zusammenbauen
-        # Mistral unterstützt Tool-Calling nativ, daher passt create_tool_calling_agent perfekt
         agent = create_tool_calling_agent(llm, all_tools, prompt)
-
         agent_executor = AgentExecutor(
-            agent=agent,
-            tools=all_tools,
-            verbose=True,
-            handle_parsing_errors=True,  # Falls Mistral mal komisches JSON spuckt
+            agent=agent, tools=all_tools, verbose=True, handle_parsing_errors=True
         )
 
-        # 6. Ausführen!
         logger.info(f"Agent starts working on Task {task['id']}...")
         result = await agent_executor.ainvoke(
             {
@@ -126,7 +153,8 @@ async def process_task_with_agent(task, config):
 
 
 def run_agent_cycle(app):
-    """Der Entrypoint für den Scheduler (Synchron)."""
+    # from main import app  # Local import to avoid circular dependency
+
     with app.app_context():
         try:
             config = AgentConfig.query.first()
@@ -135,7 +163,6 @@ def run_agent_cycle(app):
 
             logger.info("Agent cycle starting...")
 
-            # Connector Setup
             connector = TaskAppConnector(
                 base_url=config.task_app_base_url,
                 username=config.agent_username,
@@ -143,41 +170,41 @@ def run_agent_cycle(app):
                 project_id=config.target_project_id,
             )
 
-            # Tasks holen
             tasks = connector.get_open_tasks()
             if not tasks:
                 logger.info("No open tasks found.")
                 return
 
-            # Wir bearbeiten nur den ersten Task
             task = tasks[0]
             logger.info(f"Processing Task ID: {task['id']}")
 
-            # Kommentar: "Ich fange an"
             connector.post_comment(
                 task["id"], "🤖 Agent V2 (MCP & Mistral) started working..."
             )
 
-            # Work Dir vorbereiten (Clean Slate optional)
-            if not os.path.exists("/app/work_dir"):
-                os.makedirs("/app/work_dir")
-
-            # --- ASYNC AGENT STARTEN ---
             try:
-                # Hier rufen wir die asynchrone Logik auf
+                # Async Logik starten
                 output = asyncio.run(process_task_with_agent(task, config))
-
-                final_comment = f"🤖 Job Done.\n\nAgent Output:\n{output}"
-                new_status = "IN_REVIEW"
+                # --- UPDATE: Großzügiges Limit dank TEXT Feld ---
+                # 4000 Zeichen sind etwa eine volle A4 Seite Text.
+                limit = 4000
+                if len(output) > limit:
+                    short_output = (
+                        output[:limit] + f"\n\n... (Output truncated at {limit} chars)"
+                    )
+                else:
+                    short_output = output
+                final_comment = (
+                    f"🤖 Job Done. I updated the code.\n\nSummary:\n{short_output}"
+                )
+                new_status = "In Review"
 
             except Exception as e:
                 logger.error(f"Agent failed: {e}", exc_info=True)
                 final_comment = f"💥 Agent crashed: {str(e)}"
                 new_status = "OPEN"
 
-            # Abschluss
             connector.post_comment(task["id"], final_comment)
-
             if new_status == "IN_REVIEW":
                 connector.update_status(task["id"], new_status)
 

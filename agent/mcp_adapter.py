@@ -68,7 +68,6 @@ class McpGitAdapter:
     def _convert_to_langchain_tool(self, tool_schema):
         """
         Wandelt ein MCP Tool Schema in ein LangChain StructuredTool um.
-        Hier passiert die Magie: Wir erzeugen dynamisch ein Pydantic Model für die Argumente.
         """
         tool_name = tool_schema.name
         tool_desc = tool_schema.description or "No description provided."
@@ -81,7 +80,7 @@ class McpGitAdapter:
         required_fields = input_schema.get("required", [])
 
         for field_name, field_info in properties.items():
-            field_type = str  # Default zu String, da JSON Schema komplex sein kann
+            field_type = str
 
             # Einfaches Type-Mapping (kann erweitert werden)
             if field_info.get("type") == "integer":
@@ -106,22 +105,44 @@ class McpGitAdapter:
 
         # 2. Die Ausführungsfunktion (Wrapper)
         async def tool_func(**kwargs):
-            # Aufruf an den MCP Server senden
-            result = await self.session.call_tool(tool_name, arguments=kwargs)
+            try:
+                # Aufruf an MCP Server
+                result = await self.session.call_tool(tool_name, arguments=kwargs)
 
-            # Ergebnis formatieren (Text zurückgeben)
-            # MCP Tools können Text oder Bilder zurückgeben. Wir nehmen vorerst nur Text.
-            output_text = []
-            if hasattr(result, "content"):
-                for content in result.content:
-                    if content.type == "text":
-                        output_text.append(content.text)
+                output_text = []
 
-            return "\n".join(output_text)
+                # Prüfen auf Content
+                if hasattr(result, "content") and result.content:
+                    for content in result.content:
+                        if content.type == "text":
+                            # Das ist der wichtigste Fall für Git
+                            output_text.append(content.text)
+                        else:
+                            # Fallback für Bilder/Audio, falls Git mal sowas sendet (unwahrscheinlich)
+                            # Wir greifen NICHT auf .value zu, um Typ-Fehler zu vermeiden.
+                            output_text.append(f"[{content.type} content received]")
+
+                # Prüfen auf Fehler-Flag im Result
+                if hasattr(result, "isError") and result.isError:
+                    return f"ERROR executing {tool_name}: {', '.join(output_text)}"
+
+                final_output = "\n".join(output_text)
+
+                # WICHTIG: Leere Antworten verhindern (für Mistral)
+                # Wenn git_commit erfolgreich ist aber nichts sagt, geben wir "Success" zurück.
+                if not final_output.strip():
+                    return f"Tool {tool_name} executed successfully (no output)."
+
+                return final_output
+
+            except Exception as e:
+                # WICHTIG: Wir fangen Python-Fehler ab und geben sie als String zurück,
+                # damit der Agent-Loop nicht bricht (und Mistral eine Antwort bekommt).
+                return f"EXCEPTION in tool {tool_name}: {str(e)}"
 
         # 3. Das finale LangChain Tool zurückgeben
         return StructuredTool.from_function(
-            func=None,  # Wir nutzen coroutine, daher func=None
+            func=None,
             coroutine=tool_func,
             name=tool_name,
             description=tool_desc,
