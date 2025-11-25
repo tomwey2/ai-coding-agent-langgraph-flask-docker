@@ -21,7 +21,7 @@ def get_llm_model(config=None):
         )
         sys.exit(1)
 
-    model = "mistral-small-latest"  # oder "mistral-large-latest" für bessere Tool-Performance
+    model = "mistral-medium-latest"  # oder "mistral-large-latest" für bessere Tool-Performance
 
     # 2. Modell initialisieren
     # Wir nutzen 'mistral-large-latest', da es die besten Fähigkeiten

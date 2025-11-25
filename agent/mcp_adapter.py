@@ -81,12 +81,15 @@ class McpGitAdapter:
 
         for field_name, field_info in properties.items():
             field_type = str
+            json_type = field_info.get("type")
 
             # Einfaches Type-Mapping (kann erweitert werden)
-            if field_info.get("type") == "integer":
+            if json_type == "integer":
                 field_type = int
-            elif field_info.get("type") == "boolean":
+            elif json_type == "boolean":
                 field_type = bool
+            elif json_type == "array":
+                field_type = list[str]  # Wir nehmen an, es ist eine Liste von Strings
 
             # Ist das Feld Pflicht?
             if field_name in required_fields:

@@ -102,28 +102,25 @@ async def process_task_with_agent(task, config):
             [
                 (
                     "system",
-                    "You are an expert autonomous coding agent.\n"
-                    "The repository is ALREADY CLONED in: {work_dir}\n"
+                    "You are an expert autonomous coding agent. You are NOT a chat assistant.\n"
+                    "Your goal is to modifying the repository at: {work_dir}\n"
                     "Target Repository URL: {repo_url}\n"
                     "\n"
                     "TOOLS AVAILABLE:\n"
                     "- write_to_file: Create/Update files.\n"
                     "- git_add, git_commit, git_push: Version control.\n"
                     "\n"
-                    "CRITICAL RULE: NO PARALLEL EXECUTION!\n"
-                    "You MUST execute tools ONE BY ONE.\n"
-                    "Do NOT call `git_add` and `git_commit` in the same turn.\n"
-                    "Wait for the result of one tool before calling the next.\n"
+                    "You have a strict Checklist. You MUST execute these steps sequentially:\n"
+                    "1. [ ] Call 'write_to_file' to save the code/text to the disk.\n"
+                    "2. [ ] Call 'git_add' for the changed files.\n"
+                    "3. [ ] Call 'git_commit' with a message.\n"
+                    "4. [ ] Call 'git_push'.\n"
+                    "5. [ ] Reply with 'DONE'.\n"
                     "\n"
-                    "WORKFLOW:\n"
-                    "1. Analyze files.\n"
-                    "2. Use 'write_to_file' to create/change code.\n"
-                    "3. STOP and wait for result.\n"
-                    "4. Use 'git_add'.\n"
-                    "5. STOP and wait for result.\n"
-                    "6. Use 'git_commit'.\n"
-                    "7. Use 'git_push'.\n"
-                    "8. Reply with 'DONE'.",
+                    "IMPORTANT:\n"
+                    "- Do NOT output the content of the file in the chat. JUST SAVE IT.\n"
+                    "- Do NOT stop until step 4 is complete.\n"
+                    "- If 'git_push' requires credentials, assume they are in the URL.",
                 ),
                 (
                     "human",
@@ -200,15 +197,15 @@ def run_agent_cycle(app):
                 final_comment = (
                     f"🤖 Job Done. I updated the code.\n\nSummary:\n{short_output}"
                 )
-                new_status = "IN_REVIEW"
+                new_status = "In Review"
 
             except Exception as e:
                 logger.error(f"Agent failed: {e}", exc_info=True)
                 final_comment = f"💥 Agent crashed: {str(e)}"
-                new_status = "OPEN"
+                new_status = "Open"
 
             connector.post_comment(task["id"], final_comment)
-            if new_status == "IN_REVIEW":
+            if new_status == "In Review":
                 connector.update_status(task["id"], new_status)
 
             logger.info("Agent cycle finished.")
