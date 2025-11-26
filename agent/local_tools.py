@@ -102,25 +102,42 @@ def write_to_file(filepath: str, content: str):
 
 
 @tool
-def git_push_origin():
+def git_create_branch(branch_name: str):
     """
-    Pushes the current commits to the remote repository (origin).
-    REQUIRED: Use this tool to finalize the task.
+    Creates a new git branch and switches to it immediately.
+    Example: 'feature/login-page' or 'fix/bug-123'.
     """
     try:
         work_dir = "/app/work_dir"
+        # 'checkout -b' erstellt und wechselt in einem Schritt
+        subprocess.run(
+            ["git", "checkout", "-b", branch_name],
+            cwd=work_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return f"Successfully created and switched to branch '{branch_name}'."
+    except subprocess.CalledProcessError as e:
+        return f"ERROR creating branch: {e.stderr}"
 
-        # 1. Token aus Environment holen
+
+@tool
+def git_push_origin():
+    """
+    Pushes the current branch to the remote repository.
+    Sets the upstream automatically.
+    """
+    try:
+        work_dir = "/app/work_dir"
         token = os.environ.get("GITHUB_TOKEN")
         if not token:
-            return "ERROR: GITHUB_TOKEN env variable is not set. Cannot push."
+            return "ERROR: GITHUB_TOKEN missing."
 
-        # 2. Aktuelle URL holen
+        # URL Auth Logic (wie vorher)
         current_url = subprocess.check_output(
             ["git", "remote", "get-url", "origin"], cwd=work_dir, text=True
         ).strip()
-
-        # 3. URL mit Token bauen (falls noch nicht drin)
         if "https://" in current_url and "@" not in current_url:
             auth_url = current_url.replace("https://", f"https://{token}@")
             subprocess.run(
@@ -129,21 +146,20 @@ def git_push_origin():
                 check=True,
             )
 
-        # 4. Push ausführen
+        # WICHTIG: 'git push -u origin HEAD' pusht den aktuellen Branch (egal wie er heißt)
         result = subprocess.run(
-            ["git", "push", "origin", "HEAD"],
+            ["git", "push", "-u", "origin", "HEAD"],
             cwd=work_dir,
             capture_output=True,
             text=True,
             check=True,
         )
         return f"Push successful:\n{result.stdout}"
-
     except subprocess.CalledProcessError as e:
         safe_stderr = e.stderr.replace(token, "***") if token else e.stderr
         return f"Push FAILED:\n{safe_stderr}"
     except Exception as e:
-        return f"ERROR during push: {str(e)}"
+        return f"ERROR: {str(e)}"
 
 
 # --- HELPER FUNCTIONS (Nicht als @tool markiert, da für internes Setup) ---

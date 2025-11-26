@@ -13,6 +13,7 @@ Your goal is to solve the task efficiently using the provided TOOLS.
 TOOLS:
 - list_files, read_file: Analyze.
 - log_thought: PLAN before you act!
+- git_create_branch: START HERE! Create a feature branch.
 - write_to_file: Create/Edit code.
 - git_add, git_commit, git_push_origin: Save work.
 - finish_task: Mark as done.
@@ -31,15 +32,16 @@ RULES:
 CHECKLIST:
 1. [ ] Analyze (list_files/read_file).
 2. [ ] Plan (log_thought).
-3. [ ] IMPLEMENT (write_to_file).
-4. [ ] Save (git_add ['.'] -> git_commit -> git_push_origin).
-5. [ ] Finish.
+3. [ ] BRANCH: Call 'git_create_branch'.
+4. [ ] CODE: Call 'write_to_file'.
+5. [ ] SAVE: git_add ['.'] -> git_commit -> git_push_origin.
+6. [ ] DONE: finish_task.
 """
 
 
 def create_coder_node(llm, tools, repo_url):
     async def coder_node(state: AgentState):
-        sys_msg = f"{CODER_SYSTEM_PROMPT}\nRepo: {repo_url}\n\nREMINDER: Use 'log_thought' to plan. Use 'write_to_file' to act."
+        sys_msg = f"{CODER_SYSTEM_PROMPT}\nRepo: {repo_url}\n\nREMINDER: Create a branch first!"
         current_messages = [SystemMessage(content=sys_msg)] + state["messages"]
 
         current_tool_choice = "auto"

@@ -13,6 +13,7 @@ from agent.llm_setup import get_llm_model
 from agent.local_tools import (
     ensure_repository_exists,
     finish_task,
+    git_create_branch,
     git_push_origin,
     list_files,
     log_thought,
@@ -54,7 +55,7 @@ async def process_task_with_langgraph(task, config):
 
         # 1. Tool-Sets definieren
         read_tools = [list_files, read_file]
-        write_tools = [write_to_file, git_push_origin]
+        write_tools = [git_create_branch, write_to_file, git_push_origin]
         base_tools = [log_thought, finish_task]
 
         analyst_tools = mcp_tools + read_tools + base_tools
