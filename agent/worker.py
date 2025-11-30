@@ -1,5 +1,8 @@
 import asyncio
 import logging
+import os
+import sys
+from contextlib import AsyncExitStack
 
 # LangGraph
 from langchain_core.messages import AIMessage, HumanMessage
@@ -20,7 +23,7 @@ from agent.local_tools import (
     read_file,
     write_to_file,
 )
-from agent.mcp_adapter import McpGitAdapter
+from agent.mcp_adapter import McpServerClient
 from agent.nodes.analyst import create_analyst_node
 from agent.nodes.bugfixer import create_bugfixer_node
 from agent.nodes.coder import create_coder_node
@@ -48,9 +51,46 @@ async def process_task_with_langgraph(task, config):
 
     ensure_repository_exists(repo_url, work_dir)
 
-    async with McpGitAdapter() as mcp_adapter:
-        logger.info("MCP Git Server connected.")
-        mcp_tools = await mcp_adapter.get_langchain_tools()
+    # 1. Wir definieren unsere Server-Liste
+    # Hier könnten später JIRA, Slack, Postgres dazukommen!
+    servers_to_start = [
+        {
+            "name": "git",
+            "command": sys.executable,  # Wir nutzen das installierte Python-Modul
+            "args": ["-m", "mcp_server_git", "--repository", work_dir],
+            "env": os.environ.copy(),
+        },
+        # ZUKUNFTS-MUSIK (Beispiel):
+        # {
+        #    "name": "jira",
+        #    "command": "npx",
+        #    "args": ["-y", "@modelcontextprotocol/server-jira"],
+        #    "env": { ... "JIRA_API_TOKEN": ... }
+        #
+        # }
+    ]
+
+    # 2. Wir starten ALLE Server gleichzeitig
+    async with AsyncExitStack() as stack:
+        mcp_tools = []
+
+        for server_conf in servers_to_start:
+            logger.info(f"Connecting to MCP Server: {server_conf['name']}...")
+
+            # Client erstellen
+            client = McpServerClient(
+                command=server_conf["command"],
+                args=server_conf["args"],
+                env=server_conf["env"],
+            )
+
+            # Starten (enter_async_context hält die Verbindung offen bis zum Ende des 'with' Blocks)
+            await stack.enter_async_context(client)
+
+            # Tools laden und zur großen Liste hinzufügen
+            tools = await client.get_langchain_tools()
+            mcp_tools.extend(tools)
+            logger.info(f"Loaded {len(tools)} tools from {server_conf['name']}.")
 
         # 1. Tool-Sets definieren
         read_tools = [list_files, read_file]
