@@ -12,6 +12,7 @@ It operates completely unsupervised to:
 - **Push** changes via pull requests to GitHub
 
 ## Solve the Talent Bottleneck with Artificial Developers
+
 Modern software is complex. It relies on the collaboration of specialized teams across backend, frontend, database, 
 security, and more. Every developer is a vital link in the value chain.
 
@@ -20,6 +21,7 @@ But what happens when resources become a bottleneck? **The solution? Simply augm
 <img src="./process.png" title="AI Coding Agent Process" alt="AI Coding Agent Process" width="70%">
 
 ## Key Features
+
 As a **Proof of Concept (POC)**, the system demonstrates the following advanced capabilities:
 
 - **Multi-Agent Architecture:** Uses **LangGraph** to route tasks to specialized sub-agents (`Coder`, `Bugfixer`, `Analyst`).
@@ -29,26 +31,35 @@ As a **Proof of Concept (POC)**, the system demonstrates the following advanced 
 - **Dockerized & Scalable:** Runs in secure, isolated containers, allowing for effortless horizontal scaling—simply spin up additional instances to expand your virtual workforce on demand.
 
 ## Future Roadmap: From POC to Professional SaaS
+
 This Proof of Concept serves as the technological foundation for an upcoming startup venture. The goal is to evolve the system into a commercial, fully managed SaaS platform that integrates seamlessly into enterprise workflows.
 
 Key milestones for professionalization include:
 
 - **Integrated Build Management & QA:** Implementation of industry-standard build tools (e.g., Maven, Gradle) directly within the agent's environment. Agents will compile code and execute local tests before committing, acting as a quality gate to ensure only functional, bug-free code enters the repository.
-
 - **Active Code Reviews:** Agents will evolve from pure contributors to reviewers. They will analyze open Pull Requests, provide constructive feedback on code quality and security, and suggest optimizations—acting as an automated senior developer.
-
 - **Collaborative Swarm Intelligence:** Moving beyond isolated tasks, agents will be capable of communicating and collaborating with each other. This "swarm" capability will allow multiple agents to work jointly on complex, large-scale features, ensuring architectural consistency across the codebase.
 
-## Architecture
-The system is built upon a stateful graph architecture:
+**Commercialization & Next Steps** To realize this vision, we are transitioning this project into a dedicated startup. We plan to accelerate development through an upcoming crowdfunding campaign.
 
-1.  **Router Node:** Analyzes the incoming task and selects the best strategy.
-2.  **Specialist Nodes:**
-    * **👨‍💻 Coder:** Implements new features and writes code.
-    * **🐛 Bugfixer:** Analyzes errors and applies minimal fixes.
-    * **🧐 Analyst:** Read-only mode for code reviews and questions.
-3.  **Tool Execution:** The agents utilize a hybrid toolset (MCP for analysis, Local Python for file I/O and Push).
-4.  **Correction Loop:** If the AI fails to use tools or provides empty responses, a correction node forces it back on track.
+
+## Architecture
+
+The system is built upon a stateful, multi-agent architecture powered by LangGraph. Instead of a monolithic process, the execution flow is intelligently orchestrated across specialized nodes:
+
+* **Router Node:** Acts as the entry point. It analyzes the incoming ticket context and determines the optimal execution strategy by selecting the appropriate specialist.
+
+* **Specialist Nodes (Agents):**
+
+👨‍💻 - Coder: Focuses on implementing new features and writing complex logic.
+
+🐛 - Bugfixer: Diagnoses stack traces and applies targeted, minimal fixes to resolve errors.
+
+🧐 - Analyst: Operates in read-only mode to perform code reviews, answer queries, or map out dependencies.
+
+* **Hybrid Tool Execution:** The agents utilize a dual-layer toolset: the Model Context Protocol (MCP) for deep analysis and context retrieval, combined with Local Python execution for direct file I/O and Git operations.
+
+* **Self-Correction Loop:** A dedicated control node monitors agent behavior. If an agent fails to execute a tool correctly or provides empty responses, this loop intervenes to force a retry and realign the workflow.
 
 ## Tech Stack
 
