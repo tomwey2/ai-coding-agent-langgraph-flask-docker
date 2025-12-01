@@ -83,14 +83,20 @@ Die Steuerung erfolgt über Umgebungsvariablen und die Datenbank:
 ```text
 /app
 ├── agent/
+│   ├── nodes/
+│   │   ├── router.py     # Sytem Prompt für den Router
+│   │   ├── analyst.py    # Sytem Prompt für den Analyst
+│   │   ├── bugfixer.py   # Sytem Prompt für den Bugfixer
+│   │   ├── coder.py      # Sytem Prompt für den Coder
+│   │   └── ...
 │   ├── local_tools.py    # Custom Tools (Read, Write, Push)
 │   ├── mcp_adapter.py    # Verbindung zum MCP Git Server
-│   ├── prompts.py        # System Prompts für alle Rollen
 │   ├── task_connector.py # REST Client für TaskApp
 │   ├── worker.py         # LangGraph Logik & Loop
 │   └── llm_setup.py      # Mistral Konfiguration
 ├── templates/            # HTML Dashboard
-├── main.py               # Entrypoint (Flask + Scheduler)
+├── main.py               # Entrypoint
+├── webapp.py             # Flask + Scheduler
 ├── models.py             # DB Schema
 ├── constants.py          # Globale Konstanten
 ├── extensions.py         # Flask Extensions Init
