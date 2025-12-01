@@ -9,7 +9,7 @@ It operates completely unsupervised to:
 - **Connect** to your task management system
 - **Pick up** open tickets automatically
 - **Analyze/Write** code or fix bugs
-- **Push** changes via pull requests to GitHub
+- **Push** changes via pull requests to your remote repository
 
 ## Solve the Talent Bottleneck with Artificial Developers
 
@@ -18,7 +18,7 @@ security, and more. Every developer is a vital link in the value chain.
 
 But what happens when resources become a bottleneck? **The solution? Simply augment your team with artificial developers working autonomously—seamlessly integrated via Jira tickets and pull requests.**
 
-<img src="./process.png" title="AI Coding Agent Process" alt="AI Coding Agent Process" width="80%">
+<img src="./process.png" title="AI Coding Agent Process" alt="AI Coding Agent Process">
 
 ## Key Features
 
@@ -47,7 +47,7 @@ Key milestones for professionalization include:
 
 The system is built upon a stateful, multi-agent architecture powered by LangGraph. Instead of a monolithic process, the execution flow is intelligently orchestrated across specialized nodes.
 
-<img src="./langgraph.png" title="LangGraph Architecture" alt="LangGraph Architecture" width="80%">
+<img src="./langgraph.png" title="LangGraph Architecture" alt="LangGraph Architecture">
 
 * **Router Node:** The Routing workflows process inputs and then directs them to context-specific agents. It acts as the entry point. It analyzes the incoming ticket context and determines the optimal execution strategy by selecting the appropriate specialist. 
 
