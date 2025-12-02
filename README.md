@@ -103,3 +103,6 @@ docker run \
   -v $(pwd)/instance:/app/instance \
   coding-agent
 ```
+
+## License
+[Apache License 2.0](LICENSE)
