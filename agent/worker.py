@@ -227,12 +227,17 @@ async def run_agent_cycle_async(app):
             }
             task = None
             try:
-                raw_tasks = await task_mcp.call_tool(polling_tool_name, **polling_args)
-                if not raw_tasks:
+                raw_board = await task_mcp.call_tool(polling_tool_name, **polling_args)
+                if not raw_board:
                     logger.info("No open tasks found.")
                     return
 
-                task = system_def["response_parser"](raw_tasks[0])
+                tasks = system_def["response_parser"](raw_board)
+                if not tasks:
+                    logger.info("No open tasks found in board.")
+                    return
+
+                task = tasks[0]
                 logger.info(f"Processing Task ID: {task['id']}")
 
                 await task_mcp.call_tool(

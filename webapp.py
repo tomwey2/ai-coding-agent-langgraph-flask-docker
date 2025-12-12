@@ -59,15 +59,23 @@ def create_app():
             api_key = request.form.get("api_key")
             api_token = request.form.get("api_token")
             project_id = request.form.get("project_id")
+            trello_base_url = request.form.get(
+                "trello_base_url", "https://api.trello.com"
+            )
+            trello_review_list_id = request.form.get("trello_review_list_id")
 
             new_config_data = {}
             system_type = config.task_system_type
 
             if system_type == "TRELLO":
                 new_config_data = {
-                    "env": {"TRELLO_API_KEY": api_key, "TRELLO_TOKEN": api_token},
+                    "env": {
+                        "TRELLO_API_KEY": api_key,
+                        "TRELLO_TOKEN": api_token,
+                        "TRELLO_BASE_URL": trello_base_url,
+                    },
                     "trello_todo_list_id": project_id,
-                    "trello_review_list_id": "",
+                    "trello_review_list_id": trello_review_list_id,
                 }
             elif system_type == "JIRA":
                 new_config_data = {
@@ -124,6 +132,12 @@ def create_app():
                 form_data["api_key"] = saved_data.get("env", {}).get("TRELLO_API_KEY")
                 form_data["api_token"] = saved_data.get("env", {}).get("TRELLO_TOKEN")
                 form_data["project_id"] = saved_data.get("trello_todo_list_id")
+                form_data["trello_review_list_id"] = saved_data.get(
+                    "trello_review_list_id"
+                )
+                form_data["trello_base_url"] = saved_data.get("env", {}).get(
+                    "TRELLO_BASE_URL", "https://api.trello.com"
+                )
             elif config.task_system_type == "JIRA":
                 form_data["api_token"] = saved_data.get("env", {}).get("JIRA_API_TOKEN")
                 form_data["project_id"] = saved_data.get("env", {}).get(

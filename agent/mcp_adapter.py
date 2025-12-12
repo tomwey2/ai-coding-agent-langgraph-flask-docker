@@ -71,6 +71,7 @@ class McpServerClient:
             raise RuntimeError("MCP Session not started.")
         try:
             # Führe den Tool-Aufruf über die MCP-Session aus
+            print(f"Calling tool '{tool_name}' with arguments: {kwargs}")
             result = await self.session.call_tool(tool_name, arguments=kwargs)
 
             # Überprüfe auf Fehler
