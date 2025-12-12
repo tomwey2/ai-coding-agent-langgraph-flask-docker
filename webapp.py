@@ -1,10 +1,26 @@
 import json
+import logging
 import os
 
+from cryptography.fernet import Fernet, InvalidToken
 from flask import Flask, flash, redirect, render_template, request, url_for
 
 from extensions import db, scheduler
 from models import AgentConfig
+
+# --- Encryption Setup ---
+# DO NOT hardcode a key in a real application!
+# We generate one if it's not set, but this will be ephemeral.
+# For production, set a persistent ENCRYPTION_KEY environment variable.
+key = os.environ.get("ENCRYPTION_KEY")
+if not key:
+    logging.warning(
+        "ENCRYPTION_KEY not set. Generating an ephemeral key. "
+        "Configuration will be unreadable after a restart."
+    )
+    key = Fernet.generate_key().decode()
+os.environ["ENCRYPTION_KEY"] = key  # Ensure it's available for the session
+cipher_suite = Fernet(key.encode())
 
 
 def create_app():
@@ -39,7 +55,7 @@ def create_app():
                 flash("Invalid polling interval. Please enter a number.", "danger")
                 polling_interval = 60  # Fallback
 
-            # Create system_config_json from individual fields
+            # Create JSON from individual fields
             api_key = request.form.get("api_key")
             api_token = request.form.get("api_token")
             project_id = request.form.get("project_id")
@@ -49,12 +65,18 @@ def create_app():
 
             if system_type == "TRELLO":
                 new_config_data = {
-                    "env": {
-                        "TRELLO_API_KEY": api_key,
-                        "TRELLO_TOKEN": api_token,
-                    },
+                    "env": {"TRELLO_API_KEY": api_key, "TRELLO_TOKEN": api_token},
                     "trello_todo_list_id": project_id,
-                    "trello_review_list_id": "",  # Placeholder for future extension
+                    "trello_review_list_id": "",
+                }
+            elif system_type == "JIRA":
+                new_config_data = {
+                    "env": {
+                        "JIRA_URL": os.environ.get("JIRA_URL"),
+                        "JIRA_API_TOKEN": api_token,
+                        "JIRA_PROJECT_KEY": project_id,
+                    },
+                    "jql": "status = 'To Do'",
                 }
             elif system_type == "CUSTOM":
                 new_config_data = {
@@ -62,14 +84,17 @@ def create_app():
                     "agent_password": api_token,
                     "target_project_id": project_id,
                 }
-            # Add other mappings here for JIRA etc.
 
-            config.system_config_json = json.dumps(new_config_data, indent=2)
+            # Encrypt the JSON configuration
+            json_config_str = json.dumps(new_config_data, indent=2)
+            encrypted_config = cipher_suite.encrypt(json_config_str.encode()).decode()
+            config.system_config_json = encrypted_config
 
             if not config.id:
                 db.session.add(config)
             db.session.commit()
 
+            # Reschedule job
             if scheduler.get_job("agent_job"):
                 scheduler.scheduler.reschedule_job(
                     "agent_job", trigger="interval", seconds=polling_interval
@@ -78,23 +103,36 @@ def create_app():
             flash("Configuration saved successfully!", "success")
             return redirect(url_for("index"))
 
-        # GET Request: Parse JSON to populate form
+        # GET Request: Decrypt and parse JSON to populate form
         form_data = {}
+        decrypted_json = "{}"  # Default to empty JSON
+        if config.system_config_json:
+            try:
+                decrypted_json = cipher_suite.decrypt(
+                    config.system_config_json.encode()
+                ).decode()
+            except (InvalidToken, TypeError, AttributeError):
+                decrypted_json = config.system_config_json
+                flash(
+                    "Legacy or unencrypted config detected. It will be re-encrypted on save.",
+                    "info",
+                )
+
         try:
-            if config.system_config_json:
-                saved_data = json.loads(config.system_config_json)
-                if config.task_system_type == "TRELLO":
-                    form_data["api_key"] = saved_data.get("env", {}).get(
-                        "TRELLO_API_KEY"
-                    )
-                    form_data["api_token"] = saved_data.get("env", {}).get(
-                        "TRELLO_TOKEN"
-                    )
-                    form_data["project_id"] = saved_data.get("trello_todo_list_id")
-                elif config.task_system_type == "CUSTOM":
-                    form_data["api_key"] = saved_data.get("agent_username")
-                    form_data["api_token"] = saved_data.get("agent_password")
-                    form_data["project_id"] = saved_data.get("target_project_id")
+            saved_data = json.loads(decrypted_json or "{}")
+            if config.task_system_type == "TRELLO":
+                form_data["api_key"] = saved_data.get("env", {}).get("TRELLO_API_KEY")
+                form_data["api_token"] = saved_data.get("env", {}).get("TRELLO_TOKEN")
+                form_data["project_id"] = saved_data.get("trello_todo_list_id")
+            elif config.task_system_type == "JIRA":
+                form_data["api_token"] = saved_data.get("env", {}).get("JIRA_API_TOKEN")
+                form_data["project_id"] = saved_data.get("env", {}).get(
+                    "JIRA_PROJECT_KEY"
+                )
+            elif config.task_system_type == "CUSTOM":
+                form_data["api_key"] = saved_data.get("agent_username")
+                form_data["api_token"] = saved_data.get("agent_password")
+                form_data["project_id"] = saved_data.get("target_project_id")
 
         except json.JSONDecodeError:
             flash("Could not parse system configuration JSON.", "warning")

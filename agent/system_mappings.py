@@ -14,9 +14,9 @@ trello_response_parser = lambda card: {
 SYSTEM_DEFINITIONS = {
     "TRELLO": {
         "command": ["tsx", "/app/servers/trello/src/index.ts"],
-        "polling_tool": "get_cards_in_list",
+        "polling_tool": "read_board",
         "polling_args": {
-            "listId": "{trello_todo_list_id}"
+            "boardId": "{trello_todo_list_id}"
         },  # Use the key from webapp.py
         "response_parser": trello_response_parser,
     },

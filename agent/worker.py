@@ -5,6 +5,7 @@ import os
 import sys
 from contextlib import AsyncExitStack
 
+from cryptography.fernet import Fernet, InvalidToken
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -32,6 +33,20 @@ from agent.system_mappings import SYSTEM_DEFINITIONS
 from models import AgentConfig
 
 logger = logging.getLogger(__name__)
+
+# --- Encryption Setup ---
+# This MUST be the same key used in webapp.py
+# In a real distributed system, this key would be managed by a secrets manager
+key = os.environ.get("ENCRYPTION_KEY")
+if not key:
+    logger.error(
+        "CRITICAL: ENCRYPTION_KEY not set for worker. Cannot decrypt configuration."
+    )
+    # Exit or handle gracefully if no key is found
+    # For this example, we'll proceed, but decryption will fail if data is encrypted.
+    cipher_suite = None
+else:
+    cipher_suite = Fernet(key.encode())
 
 
 async def process_task_with_langgraph(task, config, git_tools, task_tools):
@@ -156,10 +171,27 @@ async def run_agent_cycle_async(app):
             logger.error(f"Task system '{config.task_system_type}' not defined.")
             return
 
+        # Decrypt the configuration
+        decrypted_json = "{}"
+        if config.system_config_json and cipher_suite:
+            try:
+                decrypted_json = cipher_suite.decrypt(
+                    config.system_config_json.encode()
+                ).decode()
+            except (InvalidToken, TypeError):
+                logger.warning(
+                    "Could not decrypt system_config_json. It might be unencrypted legacy data."
+                )
+                decrypted_json = config.system_config_json
+        elif config.system_config_json:
+            # Data exists but we have no key
+            logger.error("CRITICAL: system_config_json exists but cannot be decrypted.")
+            return
+
         try:
-            sys_config = json.loads(config.system_config_json or "{}")
+            sys_config = json.loads(decrypted_json or "{}")
         except json.JSONDecodeError:
-            logger.error("Invalid system_config_json.")
+            logger.error("Invalid JSON in system_config_json after decryption.")
             return
 
         task_env = os.environ.copy()
