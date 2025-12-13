@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -8,22 +7,8 @@ from flask import Flask, flash, redirect, render_template, request, url_for
 from extensions import db, scheduler
 from models import AgentConfig
 
-# --- Encryption Setup ---
-# DO NOT hardcode a key in a real application!
-# We generate one if it's not set, but this will be ephemeral.
-# For production, set a persistent ENCRYPTION_KEY environment variable.
-key = os.environ.get("ENCRYPTION_KEY")
-if not key:
-    logging.warning(
-        "ENCRYPTION_KEY not set. Generating an ephemeral key. "
-        "Configuration will be unreadable after a restart."
-    )
-    key = Fernet.generate_key().decode()
-os.environ["ENCRYPTION_KEY"] = key  # Ensure it's available for the session
-cipher_suite = Fernet(key.encode())
 
-
-def create_app():
+def create_app(encryption_key: Fernet) -> Flask:
     """Create and configure an instance of the Flask application."""
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object("config")
@@ -91,7 +76,7 @@ def create_app():
 
             # Encrypt the JSON configuration
             json_config_str = json.dumps(new_config_data, indent=2)
-            encrypted_config = cipher_suite.encrypt(json_config_str.encode()).decode()
+            encrypted_config = encryption_key.encrypt(json_config_str.encode()).decode()
             config.system_config_json = encrypted_config
 
             if not config.id:
@@ -111,7 +96,7 @@ def create_app():
         form_data = {}
         if config.system_config_json:
             try:
-                decrypted_json = cipher_suite.decrypt(
+                decrypted_json = encryption_key.decrypt(
                     config.system_config_json.encode()
                 ).decode()
                 saved_data = json.loads(decrypted_json or "{}")

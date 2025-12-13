@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import re
 from typing import Dict, Optional
 
@@ -10,17 +9,6 @@ from langchain_core.messages import AIMessage
 from models import AgentConfig
 
 logger = logging.getLogger(__name__)
-
-
-def get_cipher_suite() -> Optional[Fernet]:
-    """
-    Initializes the Fernet cipher suite from the ENCRYPTION_KEY environment variable.
-    """
-    key = os.environ.get("ENCRYPTION_KEY")
-    if not key:
-        logger.error("CRITICAL: ENCRYPTION_KEY not set. Cannot decrypt configuration.")
-        return None
-    return Fernet(key.encode())
 
 
 def sanitize_response(response: AIMessage) -> AIMessage:
@@ -47,31 +35,3 @@ def sanitize_response(response: AIMessage) -> AIMessage:
     # Das manipulierte Objekt zurückgeben
     response.tool_calls = valid_tools
     return response
-
-
-def decrypt_config(config: AgentConfig) -> Optional[Dict]:
-    """
-    Decrypts the system_config_json from the agent configuration.
-    """
-    cipher_suite = get_cipher_suite()
-    decrypted_json = "{}"
-    if config.system_config_json and cipher_suite:
-        try:
-            decrypted_json = cipher_suite.decrypt(
-                config.system_config_json.encode()
-            ).decode()
-        except (InvalidToken, TypeError):
-            logger.warning(
-                "Could not decrypt system_config_json. It might be unencrypted legacy data."
-            )
-            decrypted_json = config.system_config_json
-    elif config.system_config_json:
-        # Data exists but we have no key
-        logger.error("CRITICAL: system_config_json exists but cannot be decrypted.")
-        return None
-
-    try:
-        return json.loads(decrypted_json or "{}")
-    except json.JSONDecodeError:
-        logger.error("Invalid JSON in system_config_json after decryption.")
-        return None

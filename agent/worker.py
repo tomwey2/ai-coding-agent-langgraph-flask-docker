@@ -1,10 +1,12 @@
 import asyncio
+import json
 import logging
 import os
 import sys
 from contextlib import AsyncExitStack
 from typing import Any, Dict, List
 
+from cryptography.fernet import Fernet
 from flask import Flask
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.tools import BaseTool
@@ -31,7 +33,6 @@ from agent.nodes.correction import create_correction_node
 from agent.nodes.router import create_router_node
 from agent.state import AgentState
 from agent.system_mappings import SYSTEM_DEFINITIONS
-from agent.utils import decrypt_config
 from models import AgentConfig
 
 logger = logging.getLogger(__name__)
@@ -151,7 +152,7 @@ async def process_task_with_langgraph(
     return "Agent finished without a summary."
 
 
-async def run_agent_cycle_async(app: Flask) -> None:
+async def run_agent_cycle_async(app: Flask, encryption_key: Fernet) -> None:
     with app.app_context():
         config = AgentConfig.query.first()
         if not config or not config.is_active:
@@ -164,8 +165,14 @@ async def run_agent_cycle_async(app: Flask) -> None:
             logger.error(f"Task system '{config.task_system_type}' not defined.")
             return
 
-        sys_config = decrypt_config(config)
-        if sys_config is None:
+        sys_config = ""
+        try:
+            decrypted_json = encryption_key.decrypt(
+                config.system_config_json.encode()
+            ).decode()
+            sys_config = json.loads(decrypted_json or "{}")
+        except (TypeError, AttributeError, json.JSONDecodeError):
+            logger.error("Could not parse or decrypt existing configuration.")
             return
 
         task_env = os.environ.copy()
@@ -249,8 +256,8 @@ async def run_agent_cycle_async(app: Flask) -> None:
                     )
 
 
-def run_agent_cycle(app: Flask) -> None:
+def run_agent_cycle(app: Flask, encryption_key: Fernet) -> None:
     try:
-        asyncio.run(run_agent_cycle_async(app))
+        asyncio.run(run_agent_cycle_async(app, encryption_key))
     except Exception as e:
         logger.error(f"Critical error in agent cycle: {e}", exc_info=True)
