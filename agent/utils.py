@@ -1,9 +1,12 @@
 import json
 import logging
 import re
+from typing import Dict, Optional
 
-from cryptography.fernet import InvalidToken
+from cryptography.fernet import Fernet, InvalidToken
 from langchain_core.messages import AIMessage
+
+from models import AgentConfig
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +37,7 @@ def sanitize_response(response: AIMessage) -> AIMessage:
     return response
 
 
-def decrypt_config(config, cipher_suite):
+def decrypt_config(config: AgentConfig, cipher_suite: Fernet) -> Optional[Dict]:
     """
     Decrypts the system_config_json from the agent configuration.
     """
