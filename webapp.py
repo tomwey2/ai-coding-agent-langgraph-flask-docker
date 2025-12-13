@@ -54,7 +54,10 @@ def create_app(encryption_key: Fernet) -> Flask:
                         ),
                     },
                     "trello_todo_list_id": request.form.get("trello_board_id"),
-                    "trello_review_list_id": request.form.get("trello_review_list_id"),
+                    "trello_readfrom_list_id": request.form.get(
+                        "trello_readfrom_list_id"
+                    ),
+                    "trello_review_list_id": request.form.get("trello_moveto_list_id"),
                 }
             elif system_type == "JIRA":
                 new_config_data = {
@@ -110,7 +113,10 @@ def create_app(encryption_key: Fernet) -> Flask:
                     "TRELLO_TOKEN"
                 )
                 form_data["trello_board_id"] = saved_data.get("trello_todo_list_id")
-                form_data["trello_review_list_id"] = saved_data.get(
+                form_data["trello_readfrom_list_id"] = saved_data.get(
+                    "trello_readfrom_list_id"
+                )
+                form_data["trello_moveto_list_id"] = saved_data.get(
                     "trello_review_list_id"
                 )
                 form_data["trello_base_url"] = saved_data.get("env", {}).get(

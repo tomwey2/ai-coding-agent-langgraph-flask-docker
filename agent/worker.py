@@ -232,10 +232,12 @@ async def run_agent_cycle_async(app: Flask, encryption_key: Fernet) -> None:
                 )
                 final_comment = f"🤖 Job Done.\n\nSummary:\n{output}"
 
-                review_list_id = sys_config.get("trello_review_list_id")
-                if review_list_id:
+                trello_moveto_list_id = sys_config.get("trello_moveto_list_id")
+                if trello_moveto_list_id:
                     await task_mcp.call_tool(
-                        "move_card_to_list", cardId=task["id"], listId=review_list_id
+                        "move_card_",
+                        cardId=task["id"],
+                        listId=trello_moveto_list_id,
                     )
             except Exception as e:
                 logger.error(
