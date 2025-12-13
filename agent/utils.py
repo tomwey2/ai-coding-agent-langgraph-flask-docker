@@ -1,6 +1,8 @@
+import json
 import logging
 import re
 
+from cryptography.fernet import InvalidToken
 from langchain_core.messages import AIMessage
 
 logger = logging.getLogger(__name__)
@@ -30,3 +32,30 @@ def sanitize_response(response: AIMessage) -> AIMessage:
     # Das manipulierte Objekt zurückgeben
     response.tool_calls = valid_tools
     return response
+
+
+def decrypt_config(config, cipher_suite):
+    """
+    Decrypts the system_config_json from the agent configuration.
+    """
+    decrypted_json = "{}"
+    if config.system_config_json and cipher_suite:
+        try:
+            decrypted_json = cipher_suite.decrypt(
+                config.system_config_json.encode()
+            ).decode()
+        except (InvalidToken, TypeError):
+            logger.warning(
+                "Could not decrypt system_config_json. It might be unencrypted legacy data."
+            )
+            decrypted_json = config.system_config_json
+    elif config.system_config_json:
+        # Data exists but we have no key
+        logger.error("CRITICAL: system_config_json exists but cannot be decrypted.")
+        return None
+
+    try:
+        return json.loads(decrypted_json or "{}")
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON in system_config_json after decryption.")
+        return None

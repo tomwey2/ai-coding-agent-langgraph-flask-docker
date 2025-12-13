@@ -1,11 +1,10 @@
 import asyncio
-import json
 import logging
 import os
 import sys
 from contextlib import AsyncExitStack
 
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import Fernet
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, StateGraph
 from langgraph.prebuilt import ToolNode
@@ -30,6 +29,7 @@ from agent.nodes.correction import create_correction_node
 from agent.nodes.router import create_router_node
 from agent.state import AgentState
 from agent.system_mappings import SYSTEM_DEFINITIONS
+from agent.utils import decrypt_config
 from models import AgentConfig
 
 logger = logging.getLogger(__name__)
@@ -171,27 +171,8 @@ async def run_agent_cycle_async(app):
             logger.error(f"Task system '{config.task_system_type}' not defined.")
             return
 
-        # Decrypt the configuration
-        decrypted_json = "{}"
-        if config.system_config_json and cipher_suite:
-            try:
-                decrypted_json = cipher_suite.decrypt(
-                    config.system_config_json.encode()
-                ).decode()
-            except (InvalidToken, TypeError):
-                logger.warning(
-                    "Could not decrypt system_config_json. It might be unencrypted legacy data."
-                )
-                decrypted_json = config.system_config_json
-        elif config.system_config_json:
-            # Data exists but we have no key
-            logger.error("CRITICAL: system_config_json exists but cannot be decrypted.")
-            return
-
-        try:
-            sys_config = json.loads(decrypted_json or "{}")
-        except json.JSONDecodeError:
-            logger.error("Invalid JSON in system_config_json after decryption.")
+        sys_config = decrypt_config(config, cipher_suite)
+        if sys_config is None:
             return
 
         task_env = os.environ.copy()
