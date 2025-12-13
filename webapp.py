@@ -55,42 +55,38 @@ def create_app():
                 flash("Invalid polling interval. Please enter a number.", "danger")
                 polling_interval = 60  # Fallback
 
-            # Create JSON from individual fields
-            api_key = request.form.get("api_key")
-            api_token = request.form.get("api_token")
-            project_id = request.form.get("project_id")
-            trello_base_url = request.form.get(
-                "trello_base_url", "https://api.trello.com"
-            )
-            trello_review_list_id = request.form.get("trello_review_list_id")
-
+            # Create JSON from the specific fields for the selected system
             new_config_data = {}
             system_type = config.task_system_type
 
             if system_type == "TRELLO":
                 new_config_data = {
                     "env": {
-                        "TRELLO_API_KEY": api_key,
-                        "TRELLO_TOKEN": api_token,
-                        "TRELLO_BASE_URL": trello_base_url,
+                        "TRELLO_API_KEY": request.form.get("trello_api_key"),
+                        "TRELLO_TOKEN": request.form.get("trello_api_token"),
+                        "TRELLO_BASE_URL": request.form.get(
+                            "trello_base_url", "https://api.trello.com"
+                        ),
                     },
-                    "trello_todo_list_id": project_id,
-                    "trello_review_list_id": trello_review_list_id,
+                    "trello_todo_list_id": request.form.get("trello_board_id"),
+                    "trello_review_list_id": request.form.get("trello_review_list_id"),
                 }
             elif system_type == "JIRA":
                 new_config_data = {
                     "env": {
-                        "JIRA_URL": os.environ.get("JIRA_URL"),
-                        "JIRA_API_TOKEN": api_token,
-                        "JIRA_PROJECT_KEY": project_id,
+                        "JIRA_URL": os.environ.get(
+                            "JIRA_URL"
+                        ),  # Assuming this is set elsewhere
+                        "JIRA_USERNAME": request.form.get("jira_username"),
+                        "JIRA_API_TOKEN": request.form.get("jira_api_token"),
                     },
-                    "jql": "status = 'To Do'",
+                    "jql": request.form.get("jira_jql_query"),
                 }
             elif system_type == "CUSTOM":
                 new_config_data = {
-                    "agent_username": api_key,
-                    "agent_password": api_token,
-                    "target_project_id": project_id,
+                    "agent_username": request.form.get("custom_username"),
+                    "agent_password": request.form.get("custom_password"),
+                    "target_project_id": request.form.get("custom_project_id"),
                 }
 
             # Encrypt the JSON configuration
@@ -113,43 +109,48 @@ def create_app():
 
         # GET Request: Decrypt and parse JSON to populate form
         form_data = {}
-        decrypted_json = "{}"  # Default to empty JSON
         if config.system_config_json:
             try:
                 decrypted_json = cipher_suite.decrypt(
                     config.system_config_json.encode()
                 ).decode()
-            except (InvalidToken, TypeError, AttributeError):
-                decrypted_json = config.system_config_json
-                flash(
-                    "Legacy or unencrypted config detected. It will be re-encrypted on save.",
-                    "info",
-                )
+                saved_data = json.loads(decrypted_json or "{}")
 
-        try:
-            saved_data = json.loads(decrypted_json or "{}")
-            if config.task_system_type == "TRELLO":
-                form_data["api_key"] = saved_data.get("env", {}).get("TRELLO_API_KEY")
-                form_data["api_token"] = saved_data.get("env", {}).get("TRELLO_TOKEN")
-                form_data["project_id"] = saved_data.get("trello_todo_list_id")
+                # Populate form_data with prefixed keys for the template
+                # Trello data
+                form_data["trello_api_key"] = saved_data.get("env", {}).get(
+                    "TRELLO_API_KEY"
+                )
+                form_data["trello_api_token"] = saved_data.get("env", {}).get(
+                    "TRELLO_TOKEN"
+                )
+                form_data["trello_board_id"] = saved_data.get("trello_todo_list_id")
                 form_data["trello_review_list_id"] = saved_data.get(
                     "trello_review_list_id"
                 )
                 form_data["trello_base_url"] = saved_data.get("env", {}).get(
                     "TRELLO_BASE_URL", "https://api.trello.com"
                 )
-            elif config.task_system_type == "JIRA":
-                form_data["api_token"] = saved_data.get("env", {}).get("JIRA_API_TOKEN")
-                form_data["project_id"] = saved_data.get("env", {}).get(
-                    "JIRA_PROJECT_KEY"
-                )
-            elif config.task_system_type == "CUSTOM":
-                form_data["api_key"] = saved_data.get("agent_username")
-                form_data["api_token"] = saved_data.get("agent_password")
-                form_data["project_id"] = saved_data.get("target_project_id")
 
-        except json.JSONDecodeError:
-            flash("Could not parse system configuration JSON.", "warning")
+                # Jira data
+                form_data["jira_username"] = saved_data.get("env", {}).get(
+                    "JIRA_USERNAME"
+                )
+                form_data["jira_api_token"] = saved_data.get("env", {}).get(
+                    "JIRA_API_TOKEN"
+                )
+                form_data["jira_jql_query"] = saved_data.get("jql")
+
+                # Custom data
+                form_data["custom_username"] = saved_data.get("agent_username")
+                form_data["custom_password"] = saved_data.get("agent_password")
+                form_data["custom_project_id"] = saved_data.get("target_project_id")
+
+            except (InvalidToken, TypeError, AttributeError, json.JSONDecodeError):
+                flash(
+                    "Could not parse or decrypt existing configuration. It may be legacy data. Re-saving will fix it.",
+                    "warning",
+                )
 
         return render_template("index.html", config=config, form_data=form_data)
 

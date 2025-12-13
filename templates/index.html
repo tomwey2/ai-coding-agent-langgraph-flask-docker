@@ -12,6 +12,13 @@
             body {
                 background-color: #f8f9fa;
             }
+            .disabled-card {
+                opacity: 0.5;
+                pointer-events: none;
+            }
+            .card {
+                transition: opacity 0.3s ease-in-out;
+            }
         </style>
     </head>
     <body>
@@ -20,159 +27,129 @@
 
             <form method="post">
                 <div class="row g-4">
-                    <!-- Task System Card -->
-                    <div class="col-md-6">
-                        <div class="card h-100 shadow-sm">
-                            <div class="card-header">
-                                <h5>📋 Task Management</h5>
+                    <!-- Task Systems Column -->
+                    <div class="col-md-7">
+                        <div class="row g-4">
+                            <!-- Trello Card -->
+                            <div class="col-12">
+                                <div class="card h-100 shadow-sm" id="card-trello">
+                                    <div class="card-header">
+                                        <h5>Trello Configuration</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <fieldset id="fieldset-trello">
+                                            <div class="mb-3">
+                                                <label for="trello_api_key" class="form-label">API Key</label>
+                                                <input type="text" class="form-control" id="trello_api_key" name="trello_api_key" value="{{ form_data.trello_api_key or '' }}">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="trello_api_token" class="form-label">API Token</label>
+                                                <input type="password" class="form-control" id="trello_api_token" name="trello_api_token" value="{{ form_data.trello_api_token or '' }}">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="trello_board_id" class="form-label">Board ID</label>
+                                                <input type="text" class="form-control" id="trello_board_id" name="trello_board_id" value="{{ form_data.trello_board_id or '' }}">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="trello_review_list_id" class="form-label">Review List ID</label>
+                                                <input type="text" class="form-control" id="trello_review_list_id" name="trello_review_list_id" value="{{ form_data.trello_review_list_id or '' }}">
+                                            </div>
+                                             <div class="mb-3">
+                                                <label for="trello_base_url" class="form-label">Trello Base URL</label>
+                                                <input type="text" class="form-control" id="trello_base_url" name="trello_base_url" value="{{ form_data.trello_base_url or 'https://api.trello.com' }}">
+                                            </div>
+                                        </fieldset>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="card-body">
-                                <div class="mb-3">
-                                    <label
-                                        for="task_system_type"
-                                        class="form-label"
-                                        >Task System</label
-                                    >
-                                    <select
-                                        class="form-select"
-                                        id="task_system_type"
-                                        name="task_system_type"
-                                    >
-                                        <option
-                                            value="TRELLO"
-                                            {%
-                                            if
-                                            config.task_system_type=="TRELLO"
-                                            %}selected{%
-                                            endif
-                                            %}
-                                        >
-                                            Trello
-                                        </option>
-                                        <option
-                                            value="JIRA"
-                                            {%
-                                            if
-                                            config.task_system_type=="JIRA"
-                                            %}selected{%
-                                            endif
-                                            %}
-                                        >
-                                            Jira
-                                        </option>
-                                        <option
-                                            value="GITHUB_ISSUES"
-                                            {%
-                                            if
-                                            config.task_system_type=="GITHUB_ISSUES"
-                                            %}selected{%
-                                            endif
-                                            %}
-                                        >
-                                            GitHub Issues
-                                        </option>
-                                        <option
-                                            value="CUSTOM"
-                                            {%
-                                            if
-                                            config.task_system_type=="CUSTOM"
-                                            %}selected{%
-                                            endif
-                                            %}
-                                        >
-                                            Custom
-                                        </option>
-                                    </select>
+                            <!-- Jira Card -->
+                            <div class="col-12">
+                                <div class="card h-100 shadow-sm" id="card-jira">
+                                    <div class="card-header">
+                                        <h5>Jira Configuration</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <fieldset id="fieldset-jira">
+                                            <div class="mb-3">
+                                                <label for="jira_username" class="form-label">Username (Email)</label>
+                                                <input type="text" class="form-control" id="jira_username" name="jira_username" value="{{ form_data.jira_username or '' }}">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="jira_api_token" class="form-label">API Token</label>
+                                                <input type="password" class="form-control" id="jira_api_token" name="jira_api_token" value="{{ form_data.jira_api_token or '' }}">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="jira_jql_query" class="form-label">JQL Query</label>
+                                                <input type="text" class="form-control" id="jira_jql_query" name="jira_jql_query" value="{{ form_data.jira_jql_query or '' }}">
+                                            </div>
+                                        </fieldset>
+                                    </div>
                                 </div>
-                                <div class="mb-3">
-                                    <label
-                                        id="api_key_label"
-                                        for="api_key"
-                                        class="form-label"
-                                        >API Key / Username</label
-                                    >
-                                    <input
-                                        type="text"
-                                        class="form-control"
-                                        id="api_key"
-                                        name="api_key"
-                                        value="{{ form_data.api_key or '' }}"
-                                    />
-                                </div>
-                                <div class="mb-3">
-                                    <label
-                                        id="api_token_label"
-                                        for="api_token"
-                                        class="form-label"
-                                        >API Token / Password</label
-                                    >
-                                    <input
-                                        type="password"
-                                        class="form-control"
-                                        id="api_token"
-                                        name="api_token"
-                                        value="{{ form_data.api_token or '' }}"
-                                    />
-                                </div>
-                                <div class="mb-3">
-                                    <label
-                                        id="project_id_label"
-                                        for="project_id"
-                                        class="form-label"
-                                        >List ID / Project ID / JQL</label
-                                    >
-                                    <input
-                                        type="text"
-                                        class="form-control"
-                                        id="project_id"
-                                        name="project_id"
-                                        value="{{ form_data.project_id or '' }}"
-                                    />
-                                </div>
-                                <div
-                                    class="mb-3"
-                                    id="trello_url_field"
-                                    style="display: none"
-                                >
-                                    <label
-                                        for="trello_base_url"
-                                        class="form-label"
-                                        >Trello Base URL</label
-                                    >
-                                    <input
-                                        type="text"
-                                        class="form-control"
-                                        id="trello_base_url"
-                                        name="trello_base_url"
-                                        value="{{ form_data.trello_base_url or 'https://api.trello.com' }}"
-                                    />
-                                </div>
-                                <div
-                                    class="mb-3"
-                                    id="trello_review_list_id_field"
-                                    style="display: none"
-                                >
-                                    <label
-                                        for="trello_review_list_id"
-                                        class="form-label"
-                                        >Trello Review List ID</label
-                                    >
-                                    <input
-                                        type="text"
-                                        class="form-control"
-                                        id="trello_review_list_id"
-                                        name="trello_review_list_id"
-                                        value="{{ form_data.trello_review_list_id or '' }}"
-                                    />
+                            </div>
+                             <!-- Custom Card -->
+                            <div class="col-12">
+                                <div class="card h-100 shadow-sm" id="card-custom">
+                                    <div class="card-header">
+                                        <h5>Custom Configuration</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <fieldset id="fieldset-custom">
+                                            <div class="mb-3">
+                                                <label for="custom_username" class="form-label">Username</label>
+                                                <input type="text" class="form-control" id="custom_username" name="custom_username" value="{{ form_data.custom_username or '' }}">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="custom_password" class="form-label">Password</label>
+                                                <input type="password" class="form-control" id="custom_password" name="custom_password" value="{{ form_data.custom_password or '' }}">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="custom_project_id" class="form-label">Project Identifier</label>
+                                                <input type="text" class="form-control" id="custom_project_id" name="custom_project_id" value="{{ form_data.custom_project_id or '' }}">
+                                            </div>
+                                        </fieldset>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Repository and Settings Column -->
-                    <div class="col-md-6">
+                    <!-- Settings Column -->
+                    <div class="col-md-5">
                         <div class="row g-4">
-                            <!-- Repository Card -->
+                            <!-- Agent Settings Card -->
+                            <div class="col-12">
+                                <div class="card h-100 shadow-sm">
+                                    <div class="card-header">
+                                        <h5>⚙️ Agent Configuration</h5>
+                                    </div>
+                                    <div class="card-body">
+                                         <div class="mb-3">
+                                            <label class="form-label">Active Task System</label>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="task_system_type" id="radio-trello" value="TRELLO" {% if config.task_system_type == 'TRELLO' %}checked{% endif %}>
+                                                <label class="form-check-label" for="radio-trello">Trello</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="task_system_type" id="radio-jira" value="JIRA" {% if config.task_system_type == 'JIRA' %}checked{% endif %}>
+                                                <label class="form-check-label" for="radio-jira">Jira</label>
+                                            </div>
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="radio" name="task_system_type" id="radio-custom" value="CUSTOM" {% if config.task_system_type == 'CUSTOM' %}checked{% endif %}>
+                                                <label class="form-check-label" for="radio-custom">Custom</label>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="polling_interval_seconds" class="form-label">Polling Interval (seconds)</label>
+                                            <input type="number" class="form-control" id="polling_interval_seconds" name="polling_interval_seconds" value="{{ config.polling_interval_seconds or 60 }}" required>
+                                        </div>
+                                        <div class="form-check form-switch mb-3">
+                                            <input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if config.is_active %}checked{% endif %}>
+                                            <label class="form-check-label" for="is_active">Activate Agent Polling</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                             <!-- Repository Card -->
                             <div class="col-12">
                                 <div class="card h-100 shadow-sm">
                                     <div class="card-header">
@@ -180,111 +157,16 @@
                                     </div>
                                     <div class="card-body">
                                         <div class="mb-3">
-                                            <label
-                                                for="repo_type"
-                                                class="form-label"
-                                                >Repository Type</label
-                                            >
-                                            <select
-                                                class="form-select"
-                                                id="repo_type"
-                                                name="repo_type"
-                                            >
-                                                <option
-                                                    value="GITHUB"
-                                                    {%
-                                                    if
-                                                    config.repo_type=="GITHUB"
-                                                    %}selected{%
-                                                    endif
-                                                    %}
-                                                >
-                                                    GitHub
-                                                </option>
-                                                <option
-                                                    value="BITBUCKET"
-                                                    {%
-                                                    if
-                                                    config.repo_type=="BITBUCKET"
-                                                    %}selected{%
-                                                    endif
-                                                    %}
-                                                >
-                                                    Bitbucket
-                                                </option>
-                                                <option
-                                                    value="GITLAB"
-                                                    {%
-                                                    if
-                                                    config.repo_type=="GITLAB"
-                                                    %}selected{%
-                                                    endif
-                                                    %}
-                                                >
-                                                    GitLab
-                                                </option>
+                                            <label for="repo_type" class="form-label">Repository Type</label>
+                                            <select class="form-select" id="repo_type" name="repo_type">
+                                                <option value="GITHUB" {% if config.repo_type=="GITHUB" %}selected{% endif %}>GitHub</option>
+                                                <option value="BITBUCKET" {% if config.repo_type=="BITBUCKET" %}selected{% endif %}>Bitbucket</option>
+                                                <option value="GITLAB" {% if config.repo_type=="GITLAB" %}selected{% endif %}>GitLab</option>
                                             </select>
                                         </div>
                                         <div class="mb-3">
-                                            <label
-                                                for="github_repo_url"
-                                                class="form-label"
-                                                >Repository URL</label
-                                            >
-                                            <input
-                                                type="text"
-                                                class="form-control"
-                                                id="github_repo_url"
-                                                name="github_repo_url"
-                                                value="{{ config.github_repo_url }}"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <!-- Agent Settings Card -->
-                            <div class="col-12">
-                                <div class="card h-100 shadow-sm">
-                                    <div class="card-header">
-                                        <h5>⚙️ Configuration</h5>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="mb-3">
-                                            <label
-                                                for="polling_interval_seconds"
-                                                class="form-label"
-                                                >Polling Interval
-                                                (seconds)</label
-                                            >
-                                            <input
-                                                type="number"
-                                                class="form-control"
-                                                id="polling_interval_seconds"
-                                                name="polling_interval_seconds"
-                                                value="{{ config.polling_interval_seconds or 60 }}"
-                                                required
-                                            />
-                                        </div>
-                                        <div
-                                            class="form-check form-switch mb-3"
-                                        >
-                                            <input
-                                                class="form-check-input"
-                                                type="checkbox"
-                                                id="is_active"
-                                                name="is_active"
-                                                {%
-                                                if
-                                                config.is_active
-                                                %}checked{%
-                                                endif
-                                                %}
-                                            />
-                                            <label
-                                                class="form-check-label"
-                                                for="is_active"
-                                                >Activate Agent Polling</label
-                                            >
+                                            <label for="github_repo_url" class="form-label">Repository URL</label>
+                                            <input type="text" class="form-control" id="github_repo_url" name="github_repo_url" value="{{ config.github_repo_url }}">
                                         </div>
                                     </div>
                                 </div>
@@ -294,7 +176,7 @@
 
                     <!-- Save Button -->
                     <div class="col-12 mt-4">
-                        <button type="submit" class="btn btn-primary w-100">
+                        <button type="submit" class="btn btn-primary w-100 py-3">
                             Save Configuration
                         </button>
                     </div>
@@ -303,62 +185,31 @@
         </div>
 
         <script>
-            function updateTaskSystemFields() {
-                const system =
-                    document.getElementById("task_system_type").value;
-                const apiKeyLabel = document.getElementById("api_key_label");
-                const apiTokenLabel =
-                    document.getElementById("api_token_label");
-                const projectIdLabel =
-                    document.getElementById("project_id_label");
-                const trelloUrlField =
-                    document.getElementById("trello_url_field");
-                const trelloReviewListIdField = document.getElementById(
-                    "trello_review_list_id_field",
-                );
+            function updateActiveTaskSystem() {
+                const selectedSystem = document.querySelector('input[name="task_system_type"]:checked').value.toLowerCase();
 
-                // Reset all to default
-                apiKeyLabel.textContent = "API Key / Username";
-                apiTokenLabel.textContent = "API Token / Password";
-                projectIdLabel.textContent = "List ID / Project ID / JQL";
-                trelloUrlField.style.display = "none";
-                trelloReviewListIdField.style.display = "none";
+                const systems = ['trello', 'jira', 'custom'];
 
-                switch (system) {
-                    case "TRELLO":
-                        apiKeyLabel.textContent = "Trello API Key";
-                        apiTokenLabel.textContent = "Trello API Token";
-                        projectIdLabel.textContent = "Trello Board ID";
-                        trelloUrlField.style.display = "block";
-                        trelloReviewListIdField.style.display = "block";
-                        break;
-                    case "JIRA":
-                        apiKeyLabel.textContent = "Jira Username (Email)";
-                        apiTokenLabel.textContent = "Jira API Token";
-                        projectIdLabel.textContent = "Jira JQL Query";
-                        break;
-                    case "GITHUB_ISSUES":
-                        apiKeyLabel.textContent = "GitHub Username";
-                        apiTokenLabel.textContent = "GitHub Access Token";
-                        projectIdLabel.textContent =
-                            "Repository (e.g. owner/repo)";
-                        break;
-                    case "CUSTOM":
-                        apiKeyLabel.textContent = "Username";
-                        apiTokenLabel.textContent = "Password";
-                        projectIdLabel.textContent =
-                            "Custom Project Identifier";
-                        break;
-                }
+                systems.forEach(system => {
+                    const card = document.getElementById(`card-${system}`);
+                    const fieldset = document.getElementById(`fieldset-${system}`);
+
+                    if (system === selectedSystem) {
+                        card.classList.remove('disabled-card');
+                        fieldset.disabled = false;
+                    } else {
+                        card.classList.add('disabled-card');
+                        fieldset.disabled = true;
+                    }
+                });
             }
 
-            document.addEventListener("DOMContentLoaded", function () {
-                updateTaskSystemFields();
-            });
+            document.addEventListener('DOMContentLoaded', updateActiveTaskSystem);
 
-            document
-                .getElementById("task_system_type")
-                .addEventListener("change", updateTaskSystemFields);
+            const radioButtons = document.querySelectorAll('input[name="task_system_type"]');
+            radioButtons.forEach(radio => {
+                radio.addEventListener('change', updateActiveTaskSystem);
+            });
         </script>
     </body>
 </html>
